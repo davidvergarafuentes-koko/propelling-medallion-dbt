@@ -1,0 +1,278 @@
+version: 2
+
+# Gold = the sales-performance star schema. Consumers: sales leadership, regional managers
+# and analysts through a BI tool. Tests here protect the shape of the star: every key is
+# unique, every fact row finds its dimensions, and no join gained or lost rows.
+models:
+  - name: int_sales__order_lines
+    description: Preparation step joining order lines to their orders. Ephemeral, so it is not a table.
+
+  - name: dim_date
+    description: One row per calendar day, 1992-01-01 to 1998-12-31.
+    columns:
+      - name: date_key
+        description: Integer key in YYYYMMDD form.
+        data_tests: [unique, not_null]
+      - name: calendar_date
+        description: The date itself.
+        data_tests: [unique, not_null]
+      - name: year_number
+        description: Calendar year.
+      - name: quarter_number
+        description: Quarter from 1 to 4.
+      - name: year_quarter
+        description: Year and quarter, such as 1994-Q1.
+      - name: month_number
+        description: Month from 1 to 12, for sorting.
+      - name: month_name
+        description: Short month name.
+      - name: year_month
+        description: Year and month, such as 1994-01.
+      - name: iso_week_number
+        description: ISO week of the year.
+      - name: day_of_month
+        description: Day from 1 to 31.
+      - name: day_of_week_number
+        description: ISO day of the week, where 1 is Monday and 7 is Sunday.
+      - name: day_name
+        description: Short day name.
+      - name: is_weekend
+        description: True on Saturday and Sunday.
+
+  - name: dim_customer
+    description: One row per customer, with nation and region flattened in.
+    columns:
+      - name: customer_sk
+        description: Surrogate key of the customer.
+        data_tests: [unique, not_null]
+      - name: customer_key
+        description: Original customer ID from the source.
+        data_tests: [unique, not_null]
+      - name: customer_name
+        description: Generated customer name.
+      - name: market_segment
+        description: Market segment of the customer.
+        data_tests: [not_null]
+      - name: customer_nation
+        description: Nation of the customer.
+        data_tests: [not_null]
+      - name: customer_region
+        description: Region of the customer.
+        data_tests: [not_null]
+      - name: account_balance
+        description: Account balance. Negative means the customer is in debt.
+      - name: has_negative_balance
+        description: True when the account balance is below zero.
+      - name: has_ordered
+        description: True when the customer has at least one order.
+
+  - name: dim_supplier
+    description: One row per supplier, with nation and region flattened in.
+    columns:
+      - name: supplier_sk
+        description: Surrogate key of the supplier.
+        data_tests: [unique, not_null]
+      - name: supplier_key
+        description: Original supplier ID from the source.
+        data_tests: [unique, not_null]
+      - name: supplier_name
+        description: Generated supplier name.
+      - name: supplier_nation
+        description: Nation of the supplier.
+        data_tests: [not_null]
+      - name: supplier_region
+        description: Region of the supplier.
+        data_tests: [not_null]
+      - name: account_balance
+        description: Account balance of the supplier.
+
+  - name: dim_part
+    description: One row per part (product).
+    columns:
+      - name: part_sk
+        description: Surrogate key of the part.
+        data_tests: [unique, not_null]
+      - name: part_key
+        description: Original part ID from the source.
+        data_tests: [unique, not_null]
+      - name: part_name
+        description: Generated part name.
+      - name: manufacturer
+        description: Manufacturer of the part.
+      - name: brand
+        description: Brand of the part.
+      - name: part_type
+        description: Full part type.
+      - name: part_grade
+        description: Grade, the first word of the type.
+      - name: part_finish
+        description: Finish, the second word of the type.
+      - name: part_material
+        description: Material, the third word of the type.
+      - name: part_size
+        description: Size from 1 to 50.
+      - name: container
+        description: Full container code.
+      - name: container_size
+        description: Size of the container.
+      - name: container_type
+        description: Type of the container.
+      - name: retail_price
+        description: List price of one unit.
+
+  - name: dim_sale_attributes
+    description: One row per combination of order and shipping descriptors that occurs in the data. A junk dimension.
+    columns:
+      - name: sale_attributes_sk
+        description: Surrogate key of the combination.
+        data_tests: [unique, not_null]
+      - name: order_status
+        description: Fulfilled, Open or Partial.
+        data_tests: [not_null]
+      - name: order_priority_rank
+        description: Priority number for sorting, where 1 is most urgent.
+      - name: order_priority
+        description: Priority label.
+        data_tests: [not_null]
+      - name: ship_mode
+        description: Shipping method.
+        data_tests: [not_null]
+      - name: ship_instruction
+        description: Shipping instruction.
+      - name: return_status
+        description: Returned, Accepted or Not Yet Received.
+        data_tests: [not_null]
+      - name: line_status
+        description: Open or Fulfilled.
+        data_tests: [not_null]
+
+  - name: fct_sales
+    description: One row per order line. Holds only keys and measures, ready to query with the dimensions.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [order_key, line_number]
+    columns:
+      - name: sales_sk
+        description: Surrogate key of the order line.
+        data_tests: [unique, not_null]
+      - name: order_key
+        description: Order number. A degenerate dimension, used to count orders.
+        data_tests: [not_null]
+      - name: line_number
+        description: Position of the line in its order.
+        data_tests: [not_null]
+      - name: customer_sk
+        description: Key to dim_customer.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_sk
+      - name: part_sk
+        description: Key to dim_part.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_part')
+                field: part_sk
+      - name: supplier_sk
+        description: Key to dim_supplier.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_supplier')
+                field: supplier_sk
+      - name: sale_attributes_sk
+        description: Key to dim_sale_attributes.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_sale_attributes')
+                field: sale_attributes_sk
+      - name: order_date_key
+        description: Key to dim_date for the date ordered.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: ship_date_key
+        description: Key to dim_date for the date shipped.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: commit_date_key
+        description: Key to dim_date for the date delivery was promised.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: receipt_date_key
+        description: Key to dim_date for the date received.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      # Every additive measure must total exactly what Silver holds (custom test in tests/generic/).
+      - name: quantity
+        description: Units sold. Additive.
+        data_tests: &matches_silver
+          - column_total_matches:
+              arguments:
+                to: ref('slv_tpch__lineitem')
+      - name: gross_amount
+        description: Amount before discount. Additive.
+        data_tests: *matches_silver
+      - name: discount_amount
+        description: Amount given as discount. Additive.
+        data_tests: *matches_silver
+      - name: net_amount
+        description: Net revenue. Additive.
+        data_tests: *matches_silver
+      - name: tax_amount
+        description: Tax charged. Additive.
+        data_tests: *matches_silver
+      - name: total_amount
+        description: What the customer pays. Additive.
+        data_tests: *matches_silver
+      - name: cost_amount
+        description: Cost of the units sold. Additive.
+        data_tests: *matches_silver
+      - name: margin_amount
+        description: Net revenue minus cost. Additive.
+        data_tests: *matches_silver
+      - name: late_line_count
+        description: 1 when the line arrived late, otherwise 0. SUM counts late lines; AVG gives the late rate.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+                quote: false
+      - name: returned_line_count
+        description: 1 when the line was returned, otherwise 0. SUM counts returns; AVG gives the return rate.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+                quote: false
+      - name: discount_rate
+        description: Discount fraction. Not additive.
+      - name: tax_rate
+        description: Tax fraction. Not additive.
+      - name: transit_days
+        description: Days from shipping to receipt. Use AVG.
+      - name: days_late
+        description: Days from promise to receipt, negative when early. Use AVG.
