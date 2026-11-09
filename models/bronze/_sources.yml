@@ -1,0 +1,45 @@
+version: 2
+
+sources:
+  - name: tpch
+    description: >
+      TPC-H benchmark dataset at scale factor 1, shared read-only by Snowflake.
+      Models a wholesale supplier: customers place orders made of line items,
+      each line item is a part supplied by a supplier, everyone belongs to a nation and region.
+    database: SNOWFLAKE_SAMPLE_DATA
+    schema: TPCH_SF1
+    tables:
+      - name: region
+        description: 5 world regions.
+        columns:
+          - name: r_regionkey
+            data_tests: [unique, not_null]
+      - name: nation
+        description: 25 nations, each in one region.
+        columns:
+          - name: n_nationkey
+            data_tests: [unique, not_null]
+      - name: customer
+        description: ~150K customers.
+        columns:
+          - name: c_custkey
+            data_tests: [unique, not_null]
+      - name: supplier
+        description: ~10K suppliers.
+        columns:
+          - name: s_suppkey
+            data_tests: [unique, not_null]
+      - name: part
+        description: ~200K parts (products).
+        columns:
+          - name: p_partkey
+            data_tests: [unique, not_null]
+      - name: partsupp
+        description: ~800K part/supplier combinations with supply cost and availability.
+      - name: orders
+        description: ~1.5M order headers.
+        columns:
+          - name: o_orderkey
+            data_tests: [unique, not_null]
+      - name: lineitem
+        description: ~6M order lines - the grain of every sale.

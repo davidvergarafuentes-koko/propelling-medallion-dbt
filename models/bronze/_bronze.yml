@@ -1,0 +1,48 @@
+version: 2
+
+# Bronze = immutable landing zone. Tests here are deliberately light: they check that the
+# copy is complete and keys are present, NOT business correctness (that is Silver's job).
+models:
+  - name: brz_tpch__region
+    description: Raw copy of TPCH_SF1.REGION plus load metadata.
+    columns:
+      - name: r_regionkey
+        data_tests: [not_null]
+  - name: brz_tpch__nation
+    description: Raw copy of TPCH_SF1.NATION plus load metadata.
+    columns:
+      - name: n_nationkey
+        data_tests: [not_null]
+  - name: brz_tpch__customer
+    description: Raw copy of TPCH_SF1.CUSTOMER plus load metadata.
+    columns:
+      - name: c_custkey
+        data_tests: [not_null]
+  - name: brz_tpch__supplier
+    description: Raw copy of TPCH_SF1.SUPPLIER plus load metadata.
+    columns:
+      - name: s_suppkey
+        data_tests: [not_null]
+  - name: brz_tpch__part
+    description: Raw copy of TPCH_SF1.PART plus load metadata.
+    columns:
+      - name: p_partkey
+        data_tests: [not_null]
+  - name: brz_tpch__partsupp
+    description: Raw copy of TPCH_SF1.PARTSUPP plus load metadata.
+  - name: brz_tpch__orders
+    description: Raw copy of TPCH_SF1.ORDERS plus load metadata.
+    columns:
+      - name: o_orderkey
+        data_tests: [not_null]
+  - name: brz_tpch__lineitem
+    description: Raw copy of TPCH_SF1.LINEITEM plus load metadata.
+    columns:
+      - name: l_orderkey
+        data_tests: [not_null]
+      - name: l_extendedprice
+        description: Gross line amount, copied unchanged. Its total must equal the source total.
+        data_tests:
+          - column_total_matches:
+              arguments:
+                to: source('tpch', 'lineitem')

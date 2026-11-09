@@ -1,0 +1,40 @@
+name: propelling_tpch
+version: "1.0.0"
+config-version: 2
+
+profile: propelling_tpch
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+
+clean-targets: ["target", "dbt_packages"]
+
+# Each layer lands in its own schema. Materialisation reflects the purpose of the layer:
+#   bronze -> table : a physical, point-in-time copy decoupled from the source
+#   silver -> table : cleansed, reusable building blocks queried by many Gold models
+#   gold   -> table : consumption-ready star schema, fast for BI tools
+models:
+  propelling_tpch:
+    +persist_docs:
+      relation: true
+      columns: true
+    bronze:
+      +schema: bronze
+      +materialized: table
+      +tags: ["bronze"]
+    silver:
+      +schema: silver
+      +materialized: table
+      +tags: ["silver"]
+    gold:
+      +schema: gold
+      +materialized: table
+      +tags: ["gold"]
+
+data_tests:
+  propelling_tpch:
+    +severity: error

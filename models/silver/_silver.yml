@@ -1,0 +1,349 @@
+version: 2
+
+# Silver = trusted, reusable entities. Tests here check business correctness:
+# keys, relationships between tables, allowed values, valid ranges and arithmetic.
+models:
+  - name: slv_tpch__region
+    description: One row per world region, with readable names.
+    columns:
+      - name: region_key
+        description: Primary key of the region.
+        data_tests: [unique, not_null]
+      - name: region_name
+        description: Region name in Title Case.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Africa', 'America', 'Asia', 'Europe', 'Middle East']
+      - name: _loaded_at
+        description: When the row was loaded into Bronze.
+
+  - name: slv_tpch__nation
+    description: One row per nation, linked to its region.
+    columns:
+      - name: nation_key
+        description: Primary key of the nation.
+        data_tests: [unique, not_null]
+      - name: nation_name
+        description: Nation name in Title Case.
+        data_tests: [not_null]
+      - name: region_key
+        description: The region this nation belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_tpch__region')
+                field: region_key
+      - name: _loaded_at
+        description: When the row was loaded into Bronze.
+
+  - name: slv_tpch__customer
+    description: One row per customer, whether or not they have ever ordered.
+    columns:
+      - name: customer_key
+        description: Primary key of the customer.
+        data_tests: [unique, not_null]
+      - name: customer_name
+        description: Generated customer name, such as Customer#000060001.
+        data_tests: [not_null]
+      - name: customer_address
+        description: Street address with leading and trailing spaces removed.
+      - name: nation_key
+        description: The nation the customer is in.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_tpch__nation')
+                field: nation_key
+      - name: customer_phone
+        description: Phone number. The prefix is the nation key plus 10.
+      - name: account_balance
+        description: Account balance. Negative values mean the customer is in debt.
+      - name: market_segment
+        description: Market segment of the customer, in Title Case.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Automobile', 'Building', 'Furniture', 'Household', 'Machinery']
+      - name: _loaded_at
+        description: When the row was loaded into Bronze.
+
+  - name: slv_tpch__supplier
+    description: One row per supplier.
+    columns:
+      - name: supplier_key
+        description: Primary key of the supplier.
+        data_tests: [unique, not_null]
+      - name: supplier_name
+        description: Generated supplier name, such as Supplier#000000001.
+        data_tests: [not_null]
+      - name: supplier_address
+        description: Street address with leading and trailing spaces removed.
+      - name: nation_key
+        description: The nation the supplier is in.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_tpch__nation')
+                field: nation_key
+      - name: supplier_phone
+        description: Phone number. The prefix is the nation key plus 10.
+      - name: account_balance
+        description: Account balance of the supplier.
+      - name: _loaded_at
+        description: When the row was loaded into Bronze.
+
+  - name: slv_tpch__part
+    description: One row per part, with the compound type and container strings split into filterable pieces.
+    columns:
+      - name: part_key
+        description: Primary key of the part.
+        data_tests: [unique, not_null]
+      - name: part_name
+        description: Generated name made of five colour words.
+      - name: manufacturer
+        description: Manufacturer#1 to Manufacturer#5.
+        data_tests: [not_null]
+      - name: brand
+        description: Brand#11 to Brand#55.
+        data_tests: [not_null]
+      - name: part_type
+        description: Full part type in Title Case, such as Standard Anodized Steel.
+      - name: part_grade
+        description: First word of the part type.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Standard', 'Small', 'Medium', 'Large', 'Economy', 'Promo']
+      - name: part_finish
+        description: Second word of the part type.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Anodized', 'Burnished', 'Plated', 'Polished', 'Brushed']
+      - name: part_material
+        description: Third word of the part type.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Tin', 'Nickel', 'Brass', 'Steel', 'Copper']
+      - name: part_size
+        description: Size from 1 to 50.
+      - name: container
+        description: Full container code, such as SM BAG.
+      - name: container_size
+        description: First word of the container code.
+      - name: container_type
+        description: Second word of the container code.
+      - name: retail_price
+        description: List price of one unit.
+      - name: _loaded_at
+        description: When the row was loaded into Bronze.
+
+  - name: slv_tpch__partsupp
+    description: One row per part and supplier combination, holding the supplier's cost and stock.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [part_key, supplier_key]
+    columns:
+      - name: part_key
+        description: The part being offered.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_tpch__part')
+                field: part_key
+      - name: supplier_key
+        description: The supplier offering it.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_tpch__supplier')
+                field: supplier_key
+      - name: available_quantity
+        description: Units this supplier has available.
+      - name: supply_cost
+        description: What one unit costs from this supplier.
+        data_tests: [not_null]
+      - name: _loaded_at
+        description: When the row was loaded into Bronze.
+
+  - name: slv_tpch__orders
+    description: One row per order header, with decoded status and priority.
+    columns:
+      - name: order_key
+        description: Primary key of the order.
+        data_tests: [unique, not_null]
+      - name: customer_key
+        description: The customer who placed the order.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_tpch__customer')
+                field: customer_key
+      - name: order_date
+        description: The date the order was placed.
+        data_tests: [not_null]
+      - name: order_status_code
+        description: Original status letter, F, O or P.
+      - name: order_status
+        description: Decoded order status.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Fulfilled', 'Open', 'Partial']
+      - name: order_priority_rank
+        description: Priority as a number from 1 (most urgent) to 5, for sorting.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5]
+                quote: false
+      - name: order_priority
+        description: Priority label, such as Urgent.
+        data_tests: [not_null]
+      - name: order_total_price
+        description: Order total from the source, including discount and tax.
+        data_tests:
+          - column_total_matches:
+              arguments:
+                to: ref('brz_tpch__orders')
+                field: o_totalprice
+      - name: clerk_name
+        description: Generated clerk identifier, such as Clerk#000000141.
+      - name: _loaded_at
+        description: When the row was loaded into Bronze.
+
+  - name: slv_tpch__lineitem
+    description: One row per order line. The single definition of every money and delivery measure.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [order_key, line_number]
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "ship_date <= receipt_date"
+    columns:
+      - name: order_key
+        description: The order this line belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_tpch__orders')
+                field: order_key
+      - name: line_number
+        description: Position of the line in its order, from 1 to 7.
+        data_tests: [not_null]
+      - name: part_key
+        description: The part sold on this line.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_tpch__part')
+                field: part_key
+      - name: supplier_key
+        description: The supplier fulfilling this line.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_tpch__supplier')
+                field: supplier_key
+      - name: quantity
+        description: Units sold, from 1 to 50.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 50
+          - column_total_matches:
+              arguments:
+                to: ref('brz_tpch__lineitem')
+                field: l_quantity
+      - name: discount_rate
+        description: Discount as a fraction, from 0 to 0.10.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 0.10
+      - name: tax_rate
+        description: Tax as a fraction, from 0 to 0.08.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 0.08
+      - name: supply_cost
+        description: Unit cost from this supplier for this part. Null would mean no matching offer exists.
+        data_tests: [not_null]
+      - name: gross_amount
+        description: Quantity times retail price, before discount.
+        data_tests:
+          - column_total_matches:
+              arguments:
+                to: ref('brz_tpch__lineitem')
+                field: l_extendedprice
+      - name: discount_amount
+        description: gross_amount times discount_rate.
+      - name: net_amount
+        description: Net revenue. gross_amount times (1 minus discount_rate).
+      - name: tax_amount
+        description: net_amount times tax_rate.
+      - name: total_amount
+        description: What the customer pays. net_amount plus tax_amount.
+      - name: cost_amount
+        description: quantity times supply_cost.
+      - name: margin_amount
+        description: net_amount minus cost_amount. Can be negative.
+      - name: return_flag_code
+        description: Original return letter, R, A or N.
+      - name: return_status
+        description: Decoded return flag. The TPC-H specification does not name these codes, so the labels are our interpretation.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Returned', 'Accepted', 'Not Yet Received']
+      - name: is_returned
+        description: True when the line was returned.
+      - name: line_status_code
+        description: Original line status letter, O or F.
+      - name: line_status
+        description: Decoded line status.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Open', 'Fulfilled']
+      - name: ship_date
+        description: The date the line shipped.
+      - name: commit_date
+        description: The date delivery was promised.
+      - name: receipt_date
+        description: The date the customer received the line.
+      - name: transit_days
+        description: Days from ship_date to receipt_date.
+      - name: days_late
+        description: Days from commit_date to receipt_date. Negative means early.
+      - name: is_late
+        description: True when receipt_date is after commit_date.
+      - name: ship_mode
+        description: Shipping method, left as delivered.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['AIR', 'FOB', 'MAIL', 'RAIL', 'REG AIR', 'SHIP', 'TRUCK']
+      - name: ship_instruction
+        description: Shipping instruction, left as delivered.
+      - name: _loaded_at
+        description: When the row was loaded into Bronze.

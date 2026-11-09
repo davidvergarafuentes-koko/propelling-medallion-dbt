@@ -1,0 +1,26 @@
+# No secrets live in this file: connection details come from environment variables.
+# dbt picks up this file automatically when run from the project root.
+# Local use: `source .env` first. Authentication is by key pair (service user DBT_SVC).
+propelling_tpch:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'TRANSFORMER') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'TRANSFORM_WH') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'PROPELLING_DB') }}"
+      schema: dev          # only used as a prefix in the 'ci' target, see generate_schema_name
+      threads: 8
+    ci:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'TRANSFORMER') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'TRANSFORM_WH') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'PROPELLING_DB') }}"
+      schema: "{{ env_var('DBT_CI_SCHEMA', 'ci') }}"   # e.g. ci_pr_42 -> isolated schemas per PR
+      threads: 8
