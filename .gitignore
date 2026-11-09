@@ -1,0 +1,8 @@
+.venv/
+target/
+dbt_packages/
+logs/
+.env
+*.docx
+.user.yml
+.secrets/
