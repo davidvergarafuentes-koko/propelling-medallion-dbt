@@ -6,3 +6,5 @@ logs/
 *.docx
 .user.yml
 .secrets/
+__pycache__/
+.~lock.*

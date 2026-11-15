@@ -50,11 +50,12 @@ order by 1, 2;
 models/bronze/          One-line models that copy each source table
 models/silver/          Renames, decoded codes, revenue and delivery measures
 models/gold/            Star schema, plus one ephemeral preparation model
-macros/                 ingest_raw, date_to_key, generate_schema_name, drop_ci_schemas
+macros/                 ingest_raw, date_to_key, generate_schema_name, drop_ci_schemas, dashboard_filter
 tests/                  Singular reconciliation tests
 tests/generic/          column_total_matches, the custom generic test
-analyses/               profile_bronze, the data profiling queries
-snowflake_setup/        setup.sql: warehouse, database, schemas, roles, service user
+analyses/               profile_bronze (data profiling) and dashboard_* (the SQL behind each dashboard chart)
+streamlit/              streamlit_app.py, the Streamlit in Snowflake dashboard over Gold
+snowflake_setup/        setup.sql (warehouse, database, schemas, roles, service user) and streamlit_setup.sql
 .github/workflows/      ci.yml (pull requests) and deploy.yml (merges to main)
 ```
 
@@ -99,8 +100,29 @@ source .env
 | `dbt test` | Runs all 142 tests |
 | `dbt test --select test_name:column_total_matches` | Runs only the custom test |
 | `dbt docs generate` then `dbt docs serve` | Opens the documentation site and lineage graph |
+| `dbt deps` | Installs the packages in `packages.yml` (dbt_utils) |
+| `dbt debug` | Checks the connection to Snowflake |
+| `dbt show --select profile_bronze` | Runs the Bronze profiling query and prints the result |
+| `dbt show --select dashboard_region_performance` | Runs one dashboard query (also `dashboard_monthly_revenue`, `dashboard_top_customers`, `dashboard_late_delivery`) |
+| `dbt compile --select dashboard_top_customers` | Writes the plain SQL of a dashboard query to `target/compiled/` |
+| `dbt build --target ci` | What CI runs, in schemas of its own (`DBT_CI_SCHEMA`, e.g. `ci_pr_42`; defaults to `ci`) |
+| `dbt run-operation drop_ci_schemas --target ci` | Drops the CI schemas. Refuses to run on any other target |
 
 Run them from the project root after `source .env`, with `.venv/bin/` in front of `dbt`.
+
+## Dashboard
+
+`streamlit/streamlit_app.py` is a Streamlit in Snowflake app that reads Gold as the read-only `REPORTER` role. It answers four questions: is revenue growing, which regions buy the most, who the biggest customers are, and whether the ship mode explains late deliveries. Region and year filters apply to every chart. Each region keeps one colour in every chart, and every chart has a "See the numbers" table.
+
+The SQL in the app matches the four `analyses/dashboard_*.sql` files, so every number can be checked with `dbt show`.
+
+To deploy it:
+
+1. Run `snowflake_setup/streamlit_setup.sql` as `ACCOUNTADMIN`, with your user name in the `GRANT ROLE` line.
+2. In Snowsight, switch to the `REPORTER` role and create a Streamlit app. Choose `PROPELLING_DB.APPS` as the location if asked, and `TRANSFORM_WH` as the query warehouse.
+3. Replace the sample code with the contents of `streamlit/streamlit_app.py` and click **Run**.
+
+With no filters, the KPIs should read 218.1 bn net revenue, 64.9% margin, 1,500,000 orders and 63.2% late deliveries.
 
 ## How the data is tested
 
