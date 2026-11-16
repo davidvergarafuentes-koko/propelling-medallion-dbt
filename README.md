@@ -112,9 +112,9 @@ Run them from the project root after `source .env`, with `.venv/bin/` in front o
 
 ## Dashboard
 
-`streamlit/streamlit_app.py` is a Streamlit in Snowflake app that reads Gold as the read-only `REPORTER` role. It answers four questions: is revenue growing, which regions buy the most, who the biggest customers are, and whether the ship mode explains late deliveries. Region and year filters apply to every chart. Each region keeps one colour in every chart, and every chart has a "See the numbers" table.
+`streamlit/streamlit_app.py` is a Streamlit in Snowflake app that reads Gold as the read-only `REPORTER` role. It covers the whole use case (sales by region, customer, product, supplier and time) in six questions: is revenue growing, which regions buy the most, who the biggest customers are, which products sell the most, which suppliers we depend on most, and whether the ship mode explains late deliveries. Region and year filters apply to every chart. Each region keeps one colour in every chart, and every chart has a "See the numbers" table.
 
-The SQL in the app matches the four `analyses/dashboard_*.sql` files, so every number can be checked with `dbt show`.
+The SQL in the app matches the six `analyses/dashboard_*.sql` files, so every number can be checked with `dbt show`.
 
 To deploy it:
 
