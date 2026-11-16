@@ -3,7 +3,7 @@
 Runs as a Streamlit in Snowflake app: Snowsight > Projects > Streamlit > + Streamlit App,
 then paste this file over the sample code.
 
-The four tiles use the same SQL as analyses/dashboard_*.sql. Only the filter differs:
+The six tiles use the same SQL as analyses/dashboard_*.sql. Only the filter differs:
 Streamlit builds the WHERE condition itself and sends the selected values as bind
 parameters (the ? marks), so a selected value is never pasted into the SQL text.
 
@@ -162,6 +162,44 @@ group by attributes.ship_mode
 order by late_rate_pct desc
 """
 
+PRODUCT_SQL = """
+select
+    parts.part_material,
+    sum(sales.net_amount)                                                       as net_revenue,
+    sum(sales.margin_amount)                                                    as margin,
+    round(100 * sum(sales.margin_amount) / nullif(sum(sales.net_amount), 0), 2) as margin_pct,
+    sum(sales.quantity)                                                         as units_sold
+{joins}
+inner join {gold}.dim_part as parts
+    on sales.part_sk = parts.part_sk
+where {where}
+group by parts.part_material
+order by net_revenue desc
+"""
+
+TOP_SUPPLIERS_SQL = """
+select
+    suppliers.supplier_name,
+    suppliers.supplier_nation,
+    suppliers.supplier_region,
+    sum(sales.net_amount)                                                       as net_revenue,
+    sum(sales.margin_amount)                                                    as margin,
+    round(100 * sum(sales.margin_amount) / nullif(sum(sales.net_amount), 0), 2) as margin_pct,
+    count(*)                                                                    as order_lines
+{joins}
+inner join {gold}.dim_supplier as suppliers
+    on sales.supplier_sk = suppliers.supplier_sk
+where {where}
+group by
+    suppliers.supplier_key,
+    suppliers.supplier_name,
+    suppliers.supplier_nation,
+    suppliers.supplier_region
+-- supplier_key breaks ties, so the same 10 suppliers appear on every run.
+qualify row_number() over (order by sum(sales.net_amount) desc, suppliers.supplier_key) <= 10
+order by net_revenue desc, suppliers.supplier_key
+"""
+
 
 def tile(sql_template: str, where: str, params: tuple) -> pd.DataFrame:
     return run_query(sql_template.format(gold=GOLD, joins=STAR_JOINS, where=where), params)
@@ -184,6 +222,11 @@ LABELS = {
     "CUSTOMER_NATION": "Nation",
     "MARKET_SEGMENT": "Segment",
     "SHIP_MODE": "Ship mode",
+    "PART_MATERIAL": "Material",
+    "UNITS_SOLD": "Units sold",
+    "SUPPLIER_NAME": "Supplier",
+    "SUPPLIER_NATION": "Supplier nation",
+    "SUPPLIER_REGION": "Supplier region",
     "NET_REVENUE": "Net revenue",
     "MARGIN": "Margin",
     "MARGIN_PCT": "Margin %",
@@ -194,7 +237,7 @@ LABELS = {
     "AVG_TRANSIT_DAYS": "Avg transit days",
 }
 MONEY = ["Net revenue", "Margin"]
-COUNTS = ["Orders", "Order lines", "Late lines"]
+COUNTS = ["Orders", "Order lines", "Late lines", "Units sold"]
 DECIMALS = ["Margin %", "Late %", "Avg transit days"]
 
 
@@ -208,9 +251,10 @@ def show_table(df: pd.DataFrame) -> None:
 
 
 # ---- Chart builders -----------------------------------------------------------------------------
-def region_color(legend: bool) -> alt.Color:
+def region_color(legend: bool, field: str = "CUSTOMER_REGION") -> alt.Color:
+    """Same five colours for customer and supplier regions: both use the same region names."""
     return alt.Color(
-        "CUSTOMER_REGION:N",
+        f"{field}:N",
         title="Region",
         scale=alt.Scale(domain=region_options, range=REGION_COLORS[: len(region_options)]),
         legend=alt.Legend(orient="top", title=None, labelFontSize=13) if legend else None,
@@ -371,3 +415,53 @@ with right:
             "of the time, so the ship mode does not explain lateness."
         )
     show_table(late)
+
+st.markdown("---")
+
+# ---- Tiles 5 and 6 --------------------------------------------------------------------------
+left, right = st.columns(2, gap="large")
+
+with left:
+    st.subheader("Which products sell the most?")
+    st.caption("Net revenue by the part's material, the last word of its type (e.g. Promo Burnished Copper).")
+    products = tile(PRODUCT_SQL, where, params)
+    products["_LABEL"] = products["NET_REVENUE"].map(billions)
+    product_chart = horizontal_bars(
+        products, "PART_MATERIAL", "NET_REVENUE", "_LABEL", NEUTRAL,
+        tooltip=[
+            alt.Tooltip("PART_MATERIAL:N", title="Material"),
+            alt.Tooltip("_LABEL:N", title="Net revenue"),
+            alt.Tooltip("MARGIN_PCT:Q", title="Margin %", format=".1f"),
+            alt.Tooltip("UNITS_SOLD:Q", title="Units sold", format=","),
+        ],
+        value_title="Net revenue",
+    )
+    st.altair_chart(product_chart, use_container_width=True)
+    if len(products):
+        top_product = products.iloc[0]
+        st.caption(
+            f"{top_product['PART_MATERIAL']} parts lead with {billions(top_product['NET_REVENUE'])}, "
+            f"at a {top_product['MARGIN_PCT']:.1f}% margin."
+        )
+    show_table(products)
+
+with right:
+    st.subheader("Which suppliers do we depend on most?")
+    st.caption("The 10 suppliers behind the most net revenue. Colour shows the supplier's own region.")
+    suppliers = tile(TOP_SUPPLIERS_SQL, where, params)
+    suppliers["_LABEL"] = suppliers["NET_REVENUE"].map(millions)
+    supplier_chart = horizontal_bars(
+        suppliers, "SUPPLIER_NAME", "NET_REVENUE", "_LABEL",
+        region_color(legend=True, field="SUPPLIER_REGION"),
+        tooltip=[
+            alt.Tooltip("SUPPLIER_NAME:N", title="Supplier"),
+            alt.Tooltip("SUPPLIER_NATION:N", title="Nation"),
+            alt.Tooltip("_LABEL:N", title="Net revenue"),
+            alt.Tooltip("MARGIN_PCT:Q", title="Margin %", format=".1f"),
+            alt.Tooltip("ORDER_LINES:Q", title="Order lines", format=","),
+        ],
+        value_title="Net revenue",
+    )
+    st.altair_chart(supplier_chart, use_container_width=True)
+    st.caption("The region filter above picks the customers who bought, not the suppliers.")
+    show_table(suppliers)
